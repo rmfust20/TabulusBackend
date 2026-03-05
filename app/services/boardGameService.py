@@ -39,6 +39,7 @@ def get_trending_with_friends_feed(user_id: int, session: SessionDep, offset: in
         .limit(25)
     )
 
+#commit triiger
     results = session.exec(statement).all()
     board_game_ids = [result[0] for result in results]
     statement = select(BoardGame).where(BoardGame.id.in_(board_game_ids))
