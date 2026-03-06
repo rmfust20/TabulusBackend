@@ -37,6 +37,7 @@ def get_trending_with_friends_feed(user_id: int, session: SessionDep, offset: in
         .order_by(func.count(GameSession.board_game_id).desc())
         .offset(offset)
         .limit(25)
+        #trigger build
     )
 
 #commit triiger
