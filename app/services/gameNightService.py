@@ -67,6 +67,7 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[
             users=[UserBoardGameClientFacing(id=user.id, username=user.username) for user in night.users]
         )
         result.append(night_public)
+    print(result)
     return result
 
 
@@ -94,6 +95,9 @@ def add_game_night(payload: GameNightPublic, session: SessionDep):
     # 2) Night images
     for url in payload.images:
         session.add(GameNightImage(game_night_id=game_night_db.id, image_url=url))
+    host_ids = {user.id for user in payload.users}
+    if payload.host_user_id not in host_ids:
+        session.add(GameNightUserLink(game_night_id=game_night_db.id, user_id=payload.host_user_id))
     for user in payload.users:
         session.add(GameNightUserLink(game_night_id=game_night_db.id, user_id=user.id))
 
