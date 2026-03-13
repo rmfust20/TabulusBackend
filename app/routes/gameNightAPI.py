@@ -28,3 +28,9 @@ def get_game_nights(user_id: int, session:SessionDep, offset: int = 0):
 def post_game_night(game_night_public: GameNightPublic, session: SessionDep):
     add_game_night(payload=game_night_public, session=session)
     return {"message": "Game night added successfully"}
+
+@router.get("/userGameNights/{user_id}", response_model=list[GameNightPublic])
+def get_user_game_nights(user_id: int, session: SessionDep):
+    statement = select(GameNight).where(GameNight.host_user_id == user_id).order_by(GameNight.id.desc())
+    game_nights = session.exec(statement).all()
+    return game_nights
