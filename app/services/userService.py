@@ -7,6 +7,10 @@ from jose import JWTError
 from sqlmodel import select
 from app.connection import SessionDep
 from app.models import UserBoardGame
+from app.models.boardGame import BoardGame
+from app.models.gameNightUserLink import GameNightUserLink
+from app.models.gameSession import GameSession
+from app.models.review import Review
 from app.services.tokenService import decode_access_token
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -37,4 +41,24 @@ def get_current_user(
         raise HTTPException(401, "User not found")
     return user
 
+def get_user_board_games(user_id: int, db: SessionDep):
+    reviewed = (
+        select(BoardGame)
+        .join(Review, BoardGame.id == Review.board_game_id)
+        .where(Review.user_id == user_id)
+    )
 
+    played = (
+        select(BoardGame)
+        .join(GameSession, BoardGame.id == GameSession.board_game_id)
+        .join(GameNightUserLink, GameSession.game_night_id == GameNightUserLink.game_night_id)
+        .where(GameNightUserLink.user_id == user_id)
+    )
+
+    board_game_ids = set()
+    result = []
+    for bg in db.exec(reviewed).all() + db.exec(played).all():
+        if bg.id not in board_game_ids:
+            board_game_ids.add(bg.id)
+            result.append(bg)
+    return result
