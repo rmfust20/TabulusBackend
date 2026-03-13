@@ -10,7 +10,7 @@ from app.services import getBoardGameByName, reviewsService, feedService
 from app.models import BoardGameDesigner
 from app.models import BoardGameDesignerLink
 from app.services import get_game_night_feed
-from app.services.gameNightService import add_game_night
+from app.services.gameNightService import add_game_night, get_user_game_nights
 
 
 router = APIRouter(
@@ -30,7 +30,5 @@ def post_game_night(game_night_public: GameNightPublic, session: SessionDep):
     return {"message": "Game night added successfully"}
 
 @router.get("/userGameNights/{user_id}", response_model=list[GameNightPublic])
-def get_user_game_nights(user_id: int, session: SessionDep):
-    statement = select(GameNight).where(GameNight.host_user_id == user_id).order_by(GameNight.id.desc())
-    game_nights = session.exec(statement).all()
-    return game_nights
+def get_user_game_nights_route(user_id: int, session: SessionDep):
+    return get_user_game_nights(user_id, session)

@@ -71,6 +71,38 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[
     return result
 
 
+def get_user_game_nights(user_id: int, session: SessionDep) -> list[GameNightPublic]:
+    stmt = (
+        select(GameNight)
+        .where(GameNight.host_user_id == user_id)
+        .options(
+            selectinload(GameNight.images),
+            selectinload(GameNight.sessions).selectinload(GameSession.winners),
+            selectinload(GameNight.users)
+        )
+        .order_by(GameNight.id.desc())
+    )
+    nights = session.exec(stmt).unique().all()
+    return [
+        GameNightPublic(
+            id=night.id,
+            host_user_id=night.host_user_id,
+            game_night_date=night.game_night_date,
+            description=night.description,
+            sessions=[
+                GameSessionHelper(
+                    board_game_id=gs.board_game_id,
+                    duration_minutes=gs.duration_minutes,
+                    winners_user_id=[w.id for w in gs.winners]
+                )
+                for gs in night.sessions
+            ],
+            images=[image.image_url for image in night.images],
+            users=[UserBoardGameClientFacing(id=u.id, username=u.username) for u in night.users]
+        )
+        for night in nights
+    ]
+
 def get_game_night(game_night_id: int, session: SessionDep) -> GameNight | None:
     stmt = (
         select(GameNight)
