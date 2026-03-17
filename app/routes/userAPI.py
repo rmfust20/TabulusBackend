@@ -137,4 +137,4 @@ def update_user(updates: UserBoardGameUpdate, session: SessionDep, current_user:
 
 @router.get("/userBoardGames/{user_id}", response_model=UserBoardGamePublic)
 def get_user_board_games_route(user_id: int, session: SessionDep):
-    return get_user_board_games(user_id, session)
+    return session.exec(select(UserBoardGame).where(UserBoardGame.id == user_id)).first()
