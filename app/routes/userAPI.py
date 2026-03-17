@@ -129,6 +129,7 @@ def update_user(updates: UserBoardGameUpdate, session: SessionDep, current_user:
         current_user.email = updates.email
     if updates.password is not None:
         current_user.password_hash = hash_password(updates.password)
+    print(current_user)
     session.add(current_user)
     session.commit()
     session.refresh(current_user)

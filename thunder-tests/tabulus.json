@@ -1,0 +1,56 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "Tabulus",
+  "collectionId": "tabulus-001",
+  "dateExported": "2026-03-08",
+  "version": "1.1",
+  "folders": [],
+  "requests": [
+    {
+      "id": "req-post-night",
+      "colId": "tabulus-001",
+      "containerId": "",
+      "name": "Post Game Night",
+      "url": "http://localhost:8000/gameNights/postNight",
+      "method": "POST",
+      "sortNum": 1,
+      "created": "2026-03-08",
+      "modified": "2026-03-08",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"host_user_id\": 1,\n  \"game_night_date\": \"2026-03-08\",\n  \"description\": \"Friday board game night\",\n  \"sessions\": [\n    {\n      \"board_game_id\": 1,\n      \"duration_minutes\": 90,\n      \"winners_user_id\": [1, 2]\n    },\n    {\n      \"board_game_id\": 2,\n      \"duration_minutes\": 45,\n      \"winners_user_id\": [3]\n    }\n  ],\n  \"images\": [\n    \"https://example.com/image1.jpg\"\n  ],\n  \"user_ids\": [1, 2, 3]\n}"
+      },
+      "params": [],
+      "auth": { "type": "none" },
+      "tests": []
+    },
+    {
+      "id": "req-user-feed",
+      "colId": "tabulus-001",
+      "containerId": "",
+      "name": "Get User Feed",
+      "url": "http://localhost:8000/gameNights/userFeed/1",
+      "method": "GET",
+      "sortNum": 2,
+      "created": "2026-03-08",
+      "modified": "2026-03-08",
+      "headers": [],
+      "body": { "type": "none" },
+      "params": [
+        {
+          "name": "offset",
+          "value": "0",
+          "isPath": false
+        }
+      ],
+      "auth": { "type": "none" },
+      "tests": []
+    }
+  ]
+}
