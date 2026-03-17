@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 class UserBoardGameBase(SQLModel):
     username: str = Field(index=True, sa_column_kwargs={"unique": True})
     email: str = Field(index = True)
+    profile_image_url: str | None = None
 
 class UserBoardGame(UserBoardGameBase,table=True):
     id: int | None = Field(default=None, primary_key=True)
