@@ -115,7 +115,7 @@ def get_friends(user_id: int, session: SessionDep):
     friends = session.exec(statement).all()
     return [{"id": friend.id, "username": friend.username} for friend in friends]
 
-@router.get("/userBoardGames/{user_id}", response_model=list[BoardGame])
+@router.get("/boardGames/{user_id}", response_model=list[BoardGame])
 def get_user_board_games_route(user_id: int, session: SessionDep):
     return get_user_board_games(user_id, session)
 
@@ -135,6 +135,7 @@ def update_user(updates: UserBoardGameUpdate, session: SessionDep, current_user:
     session.refresh(current_user)
     return current_user
 
-@router.get("/userBoardGames/{user_id}", response_model=UserBoardGamePublic)
-def get_user_board_games_route(user_id: int, session: SessionDep):
+@router.get("/userProfile/{user_id}", response_model=UserBoardGamePublic)
+def get_user_profile_route(user_id: int, session: SessionDep):
+    print("executing get_user_profile_route")
     return session.exec(select(UserBoardGame).where(UserBoardGame.id == user_id)).first()
