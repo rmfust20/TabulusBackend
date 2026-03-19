@@ -4,11 +4,12 @@ from app.models import UserBoardGame, UserBoardGameCreate, UserBoardGamePublic, 
 from fastapi import APIRouter
 from app.connection import SessionDep
 from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlmodel import Field, Session, SQLModel, create_engine, insert, select
+from sqlmodel import Field, Session, SQLModel, create_engine, insert, select, delete
 from app.connection import SessionDep
 from typing import Annotated
 from app.models.boardGame import BoardGame
 from app.models.user import UserBoardGameBase
+from app.models.userFriendsPending import UserFriendPending
 from app.services.tokenService import create_access_token
 from app.services.userService import get_current_user, get_user_board_games, hash_password, verify_password
 from app.services.tokenService import new_refresh_token, hash_refresh_token
@@ -103,7 +104,64 @@ def add_friend(user_id: int, friend_id: int, session: SessionDep):
     session.commit()
     return {"message": "Friend added successfully"}
 
-    # Implement the logic to add a friend here
+@router.get("/pendingFriends/{user_id}", response_model=list[UserBoardGameClientFacing])
+def get_pending_friends(user_id: int, session: SessionDep):
+    statement = (
+        select(UserBoardGame)
+        .join(UserFriendPending, UserBoardGame.id == UserFriendPending.incoming_friend_user_id)
+        .where(UserFriendPending.user_id == user_id)
+    )
+    pending_friends = session.exec(statement).all()
+    return [{"id": friend.id, "username": friend.username} for friend in pending_friends]
+
+@router.post("/rejectFriend/{user_id}/{friend_id}")
+def reject_friend(user_id: int, friend_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    if current_user.id != user_id:
+        raise HTTPException(403, "Cannot reject friend for another user")
+
+    session.exec(
+        delete(UserFriendPending)
+        .where(UserFriendPending.user_id == user_id, UserFriendPending.incoming_friend_user_id == friend_id)
+    )
+    session.commit()
+    return {"message": "Friend request rejected"}
+
+@router.post("/sendFriendRequest/{user_id}/{friend_id}")
+def send_friend_request(user_id: int, friend_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    if current_user.id != user_id:
+        raise HTTPException(403, "Cannot send friend request for another user")
+
+    # user_id = recipient, incoming_friend_user_id = sender
+    statement = insert(UserFriendPending).values(user_id=friend_id, incoming_friend_user_id=user_id)
+    session.exec(statement)
+    session.commit()
+    return {"message": "Friend request sent"}
+
+@router.post("/acceptFriend/{user_id}/{friend_id}")
+def accept_friend(user_id: int, friend_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    if current_user.id != user_id:
+        raise HTTPException(403, "Cannot accept friend for another user")
+
+    # Remove from pending (recipient=user_id, sender=friend_id)
+    session.exec(
+        delete(UserFriendPending)
+        .where(UserFriendPending.user_id == user_id, UserFriendPending.incoming_friend_user_id == friend_id)
+    )
+    # Add to friends (both directions)
+    session.exec(insert(UserFriendLink).values(user_id=user_id, friend_user_id=friend_id))
+    session.exec(insert(UserFriendLink).values(user_id=friend_id, friend_user_id=user_id))
+    session.commit()
+    return {"message": "Friend request accepted"}
+
+@router.delete("/removeFriend/{user_id}/{friend_id}")
+def remove_friend(user_id: int, friend_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    if current_user.id != user_id:
+        raise HTTPException(403, "Cannot remove friend for another user")
+
+    session.exec(delete(UserFriendLink).where(UserFriendLink.user_id == user_id, UserFriendLink.friend_user_id == friend_id))
+    session.exec(delete(UserFriendLink).where(UserFriendLink.user_id == friend_id, UserFriendLink.friend_user_id == user_id))
+    session.commit()
+    return {"message": "Friend removed"}
 
 @router.get("/friends/{user_id}", response_model=list[UserBoardGameClientFacing])
 def get_friends(user_id: int, session: SessionDep): 
