@@ -32,3 +32,10 @@ def post_game_night(game_night_public: GameNightPublic, session: SessionDep):
 @router.get("/userGameNights/{user_id}", response_model=list[GameNightPublic])
 def get_user_game_nights_route(user_id: int, session: SessionDep):
     return get_user_game_nights(user_id, session)
+
+@router.get("/{user_id}", response_model=GameNightPublic)
+def get_game_night_by_id(user_id: int, session: SessionDep):
+    game_night = session.exec(select(GameNight).where(GameNight.id == user_id)).first()
+    if not game_night:
+        raise HTTPException(404, "Game night not found")
+    return game_night
