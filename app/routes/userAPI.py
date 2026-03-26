@@ -198,6 +198,12 @@ def update_user(updates: UserBoardGameUpdate, session: SessionDep, current_user:
     session.refresh(current_user)
     return current_user
 
+@router.get("/search", response_model=list[UserBoardGameClientFacing])
+def search_users(username: str, session: SessionDep):
+    statement = select(UserBoardGame).where(UserBoardGame.username.ilike(f"%{username}%")).limit(25)
+    users = session.exec(statement).all()
+    return [{"id": u.id, "username": u.username} for u in users]
+
 @router.get("/userProfile/{user_id}", response_model=UserBoardGamePublic)
 def get_user_profile_route(user_id: int, session: SessionDep):
     print("executing get_user_profile_route")
