@@ -119,6 +119,18 @@ def get_pending_friends(user_id: int, session: SessionDep):
     pending_friends = session.exec(statement).all()
     return [{"id": friend.id, "username": friend.username} for friend in pending_friends]
 
+@router.get("/sentFriendRequests/{user_id}", response_model=list[UserBoardGameClientFacing])
+def get_sent_friend_requests(user_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    if current_user.id != user_id:
+        raise HTTPException(403, "Cannot view another user's sent requests")
+    statement = (
+        select(UserBoardGame)
+        .join(UserFriendPending, UserBoardGame.id == UserFriendPending.user_id)
+        .where(UserFriendPending.incoming_friend_user_id == user_id)
+    )
+    users = session.exec(statement).all()
+    return [{"id": u.id, "username": u.username} for u in users]
+
 @router.post("/rejectFriend/{user_id}/{friend_id}")
 def reject_friend(user_id: int, friend_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
     if current_user.id != user_id:
