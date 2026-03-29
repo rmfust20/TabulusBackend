@@ -19,6 +19,7 @@ from app.services.tokenService import create_access_token
 from app.services.userService import get_current_user, get_user_board_games, hash_password, verify_password
 from app.services.tokenService import new_refresh_token, hash_refresh_token
 from app.models.refreshToken import RefreshToken
+from app.models.passwordResetToken import PasswordResetToken
 from app.services.appleAuthService import verify_apple_token
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
@@ -81,7 +82,7 @@ def refresh(refresh_token: str, session: SessionDep):
     if not rt:
         raise HTTPException(401, "Invalid refresh token")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if rt.revoked_at is not None or rt.expires_at <= now:
         raise HTTPException(401, "Refresh token expired or revoked")
 
@@ -374,3 +375,80 @@ def delete_account(session: SessionDep, current_user: UserBoardGame = Depends(ge
     session.delete(current_user)
     session.commit()
     return {"message": "Account deleted"}
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@router.post("/forgotPassword")
+def forgot_password(request: ForgotPasswordRequest, session: SessionDep):
+    import uuid, hashlib, os
+    from azure.communication.email import EmailClient
+
+    user = session.exec(select(UserBoardGame).where(UserBoardGame.email == request.email)).first()
+    # Always return 200 so we don't leak whether an email is registered
+    if not user:
+        return {"message": "If that email is registered you will receive a reset link"}
+
+    raw_token = str(uuid.uuid4())
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    # Invalidate any existing unused tokens for this user
+    session.exec(
+        delete(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at == None
+        )
+    )
+
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    session.add(reset_token)
+    session.commit()
+
+    client = EmailClient.from_connection_string(os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING"))
+    client.begin_send({
+        "senderAddress": os.getenv("AZURE_EMAIL_SENDER"),
+        "recipients": {"to": [{"address": user.email}]},
+        "content": {
+            "subject": "Reset your Tabulus password",
+            "plainText": f"Tap the link to reset your password. It expires in 30 minutes.\n\ntabulus://resetPassword?token={raw_token}",
+        },
+    })
+
+    return {"message": "If that email is registered you will receive a reset link"}
+
+@router.post("/resetPassword")
+def reset_password(request: ResetPasswordRequest, session: SessionDep):
+    import hashlib
+    token_hash = hashlib.sha256(request.token.encode()).hexdigest()
+
+    reset_token = session.exec(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used_at == None,
+        )
+    ).first()
+
+    if not reset_token:
+        raise HTTPException(400, "Invalid or expired reset token")
+    if reset_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(400, "Invalid or expired reset token")
+
+    user = session.get(UserBoardGame, reset_token.user_id)
+    if not user:
+        raise HTTPException(400, "Invalid or expired reset token")
+
+    user.password_hash = hash_password(request.new_password)
+    reset_token.used_at = datetime.now(timezone.utc)
+    session.add(user)
+    session.add(reset_token)
+    session.commit()
+
+    return {"message": "Password reset successfully"}

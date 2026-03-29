@@ -15,3 +15,4 @@ from .gameSession import GameSession
 from .gameNightUserLink import GameNightUserLink
 from .gameSessionUserLink import GameSessionUserLink
 from .userFriendLink import UserFriendLink
+from .passwordResetToken import PasswordResetToken
