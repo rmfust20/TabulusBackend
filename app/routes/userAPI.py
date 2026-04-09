@@ -427,15 +427,13 @@ def forgot_password(request: Request, body: ForgotPasswordRequest, session: Sess
     session.add(reset_token)
     session.commit()
 
-    reset_link = f"tabulus://resetPassword?token={raw_token}"
     client = EmailClient.from_connection_string(os.getenv("AZURE_COMMUNICATION_CONNECTION_STRING"))
     client.begin_send({
         "senderAddress": os.getenv("AZURE_EMAIL_SENDER"),
         "recipients": {"to": [{"address": user.email}]},
         "content": {
             "subject": "Reset your Ludio password",
-            "plainText": f"Tap the link to reset your password. It expires in 30 minutes.\n\n{reset_link}",
-            "html": f"<p>Tap the link below to reset your password. It expires in 30 minutes.</p><p><a href=\"{reset_link}\">Reset my password</a></p>",
+            "plainText": f"Tap the link to reset your password. It expires in 30 minutes.\n\ntabulus://resetPassword?token={raw_token}",
         },
     })
 
