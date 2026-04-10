@@ -16,8 +16,14 @@ router = APIRouter(
 
 @router.get("/boardGame/{board_game_id}", response_model=list[Review])
 @limiter.limit("300/hour")
-def read_reviews_by_board_game_name(request: Request, board_game_id, session: SessionDep, _: UserBoardGame = Depends(get_current_user)):
-    statement = select(Review).where(Review.board_game_id == board_game_id).order_by(Review.id).limit(25)
+def read_reviews_by_board_game_name(request: Request, board_game_id, session: SessionDep, offset: int = 0, _: UserBoardGame = Depends(get_current_user)):
+    statement = (
+        select(Review)
+        .where(Review.board_game_id == board_game_id)
+        .order_by(Review.id.desc())
+        .offset(offset)
+        .limit(25)
+    )
     reviews = session.exec(statement).all()
     return reviews
 
