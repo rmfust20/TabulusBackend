@@ -19,7 +19,7 @@ def get_game_night_profile(user_id: int, offset: int, session: SessionDep) -> li
         .options(
             selectinload(GameNight.images)  # night.sessions + session.images
         )
-        .order_by(GameNight.game_night_date.desc())
+        .order_by(GameNight.id.desc())
         .offset(offset)
         .limit(25)
     )
@@ -44,7 +44,7 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[
             selectinload(GameNight.sessions).selectinload(GameSession.board_game),
             selectinload(GameNight.users)
         )
-        .order_by(GameNight.game_night_date.desc())
+        .order_by(GameNight.id.desc())
         .offset(offset)
         .limit(25)
     )
