@@ -1,4 +1,10 @@
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from typing import TYPE_CHECKING
+from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
+
+from app.models.user import UserBoardGamePublic
+
+if TYPE_CHECKING:
+    from app.models.user import UserBoardGame
 
 
 class Review(SQLModel, table=True):
@@ -10,9 +16,19 @@ class Review(SQLModel, table=True):
     comment: str | None = Field(default=None)
     date_created: str | None = Field(default=None)
 
+    user: "UserBoardGame" = Relationship()
+
 class ReviewUpdate(SQLModel):
     rating: int | None = Field(default=None)
     comment: str | None = Field(default=None)
     date_created: str | None = Field(default=None)
+
+class ReviewPublic(SQLModel):
+    id: int
+    board_game_id: int
+    rating: int | None = None
+    comment: str | None = None
+    date_created: str | None = None
+    user: UserBoardGamePublic | None = None
 
 

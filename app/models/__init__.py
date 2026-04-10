@@ -7,7 +7,7 @@ from .publisher import Publisher
 from .boardGamePublisherLink import BoardGamePublisherLink
 from .boardGameDesigner import BoardGameDesigner
 from .boardGameDesignerLink import BoardGameDesignerLink
-from .review import Review, ReviewUpdate
+from .review import Review, ReviewUpdate, ReviewPublic
 from .user import UserBoardGame, UserBoardGameCreate, UserBoardGamePublic, UserBoardGameUpdate, UserBoardGameClientFacing
 from .loginRequest import LoginRequest
 from .gameNight import GameNight

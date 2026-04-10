@@ -3,7 +3,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from app.connection import SessionDep
 from fastapi import APIRouter
 from sqlmodel import Field, Session, SQLModel, create_engine, select
-from app.models import Review, UserBoardGame, ReviewUpdate
+from app.models import Review, UserBoardGame, ReviewUpdate, ReviewPublic
+from sqlalchemy.orm import selectinload
 from app.services import reviewsService
 from app.services.userService import get_current_user
 from app.utilities.limiter import limiter
@@ -14,12 +15,13 @@ router = APIRouter(
     prefix="/reviews",
 )
 
-@router.get("/boardGame/{board_game_id}", response_model=list[Review])
+@router.get("/boardGame/{board_game_id}", response_model=list[ReviewPublic])
 @limiter.limit("300/hour")
 def read_reviews_by_board_game_name(request: Request, board_game_id, session: SessionDep, offset: int = 0, _: UserBoardGame = Depends(get_current_user)):
     statement = (
         select(Review)
         .where(Review.board_game_id == board_game_id)
+        .options(selectinload(Review.user))
         .order_by(Review.id.desc())
         .offset(offset)
         .limit(25)
