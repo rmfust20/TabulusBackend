@@ -13,7 +13,7 @@ def get_general_trending_feed(session: SessionDep, offset: int = 0) -> list[Boar
         .group_by(GameSession.board_game_id)
         .order_by(func.count(GameSession.board_game_id).desc())
         .offset(offset)
-        .limit(25)
+        .limit(5)
     )
 
     results = session.exec(statement).all()
