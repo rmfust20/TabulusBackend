@@ -24,7 +24,7 @@ def read_reviews_by_board_game_name(request: Request, board_game_id, session: Se
         .options(selectinload(Review.user))
         .order_by(Review.id.desc())
         .offset(offset)
-        .limit(25)
+        .limit(2)
     )
     reviews = session.exec(statement).all()
     return reviews
