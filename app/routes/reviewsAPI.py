@@ -82,6 +82,18 @@ def get_user_review_for_board_game(request: Request, user_id: int, board_game_id
     review = session.exec(statement).first()
     return review
 
+@router.get("/pinnedUser/{user_id}/{board_game_id}", response_model=ReviewPublic | None)
+@limiter.limit("300/hour")
+def get_user_review_for_board_game(request: Request, user_id: int, board_game_id: int, session: SessionDep, _: UserBoardGame = Depends(get_current_user)):
+    statement = (
+        select(Review)
+        .where(Review.user_id == user_id, Review.board_game_id == board_game_id)
+        .options(selectinload(Review.user))
+        .order_by(Review.id.desc())
+    )
+    review = session.exec(statement).first()
+    return review
+
 @router.delete("/{review_id}")
 @limiter.limit("60/hour")
 def delete_review(request: Request, review_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
