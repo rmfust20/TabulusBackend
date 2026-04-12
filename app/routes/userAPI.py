@@ -21,6 +21,7 @@ from app.services.userService import get_current_user, get_user_board_games, has
 from app.services.tokenService import new_refresh_token, hash_refresh_token
 from app.models.refreshToken import RefreshToken
 from app.models.passwordResetToken import PasswordResetToken
+from app.models.inviteToken import InviteToken
 from app.services.appleAuthService import verify_apple_token
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
@@ -473,3 +474,84 @@ def reset_password(request: Request, body: ResetPasswordRequest, session: Sessio
     session.commit()
 
     return {"message": "Password reset successfully"}
+
+# ── Friend Invite Deep Link ──────────────────────────────────────────────────
+
+@router.post("/invite")
+@limiter.limit("20/hour")
+def create_invite(request: Request, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    import uuid, hashlib
+
+    raw_token = str(uuid.uuid4())
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    invite = InviteToken(
+        inviter_user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    session.add(invite)
+    session.commit()
+
+    return {"token": raw_token, "expires_in_days": 7}
+
+@router.post("/invite/accept")
+@limiter.limit("30/hour")
+def accept_invite(request: Request, token: str, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    import hashlib
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    invite = session.exec(
+        select(InviteToken).where(
+            InviteToken.token_hash == token_hash,
+            InviteToken.used_at == None,
+        )
+    ).first()
+
+    if not invite:
+        raise HTTPException(400, "Invalid or expired invite token")
+    if invite.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(400, "Invalid or expired invite token")
+
+    inviter_id = invite.inviter_user_id
+
+    # Can't befriend yourself
+    if inviter_id == current_user.id:
+        raise HTTPException(400, "Cannot accept your own invite")
+
+    # Mark token as used
+    invite.used_at = datetime.now(timezone.utc)
+    session.add(invite)
+
+    # Check if already friends
+    existing_friend = session.exec(
+        select(UserFriendLink).where(
+            UserFriendLink.user_id == current_user.id,
+            UserFriendLink.friend_user_id == inviter_id,
+        )
+    ).first()
+    if existing_friend:
+        session.commit()
+        return {"message": "Already friends", "inviter_id": inviter_id}
+
+    # Remove any existing pending requests between these users (either direction)
+    session.exec(
+        delete(UserFriendPending).where(
+            UserFriendPending.user_id == current_user.id,
+            UserFriendPending.incoming_friend_user_id == inviter_id,
+        )
+    )
+    session.exec(
+        delete(UserFriendPending).where(
+            UserFriendPending.user_id == inviter_id,
+            UserFriendPending.incoming_friend_user_id == current_user.id,
+        )
+    )
+
+    # Create friend link both directions
+    session.exec(insert(UserFriendLink).values(user_id=current_user.id, friend_user_id=inviter_id))
+    session.exec(insert(UserFriendLink).values(user_id=inviter_id, friend_user_id=current_user.id))
+    session.commit()
+
+    return {"message": "Friend added", "inviter_id": inviter_id}
