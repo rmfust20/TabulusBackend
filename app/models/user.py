@@ -19,8 +19,10 @@ class UserBoardGame(UserBoardGameBase,table=True):
     won_sessions: list["GameSession"] = Relationship(back_populates="winners", link_model=GameSessionUserLink)
     game_nights: list["GameNight"] = Relationship(link_model=GameNightUserLink, back_populates="users")
 
-class UserBoardGamePublic(UserBoardGameBase):
+class UserBoardGamePublic(SQLModel):
     id: int
+    username: str = Field(index=True, sa_column_kwargs={"unique": True})
+    profile_image_url: str | None = None
 
 class UserBoardGameCreate(UserBoardGameBase):
     password : str

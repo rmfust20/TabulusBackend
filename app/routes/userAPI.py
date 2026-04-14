@@ -27,6 +27,9 @@ from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 class AppleAuthRequest(BaseModel):
     identity_token: str
 
@@ -80,8 +83,11 @@ def login_user(request: Request, login_request: LoginRequest, session: SessionDe
 
 @router.post("/refresh")
 @limiter.limit("20/minute")
-def refresh(request: Request, refresh_token: str, session: SessionDep):
-    token_hash = hash_refresh_token(refresh_token)
+def refresh(request: Request, session: SessionDep, body: RefreshTokenRequest | None = None, refresh_token: str | None = None):
+    token = body.refresh_token if body else refresh_token
+    if not token:
+        raise HTTPException(400, "refresh_token is required")
+    token_hash = hash_refresh_token(token)
 
     rt = session.exec(select(RefreshToken).where(RefreshToken.token_hash == token_hash)).first()
     if not rt:
@@ -109,8 +115,11 @@ def refresh(request: Request, refresh_token: str, session: SessionDep):
 
 @router.post("/logout")
 @limiter.limit("20/minute")
-def logout(request: Request, refresh_token: str, session: SessionDep):
-    token_hash = hash_refresh_token(refresh_token)
+def logout(request: Request, session: SessionDep, body: RefreshTokenRequest | None = None, refresh_token: str | None = None):
+    token = body.refresh_token if body else refresh_token
+    if not token:
+        raise HTTPException(400, "refresh_token is required")
+    token_hash = hash_refresh_token(token)
     rt = session.exec(select(RefreshToken).where(RefreshToken.token_hash == token_hash)).first()
     if rt:
         rt.revoked_at = datetime.now(timezone.utc)
