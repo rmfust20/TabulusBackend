@@ -30,10 +30,9 @@ def get_game_night_profile(user_id: int, offset: int, session: SessionDep) -> li
 def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[GameNightPublic]:
     stmt = (
         select(GameNight)
-        .join(GameNightUserLink, GameNight.id == GameNightUserLink.game_night_id)
         .where(
-            (GameNightUserLink.user_id == user_id) |
-            GameNightUserLink.user_id.in_(
+            (GameNight.host_user_id == user_id) |
+            GameNight.host_user_id.in_(
                 select(UserFriendLink.friend_user_id)
                 .where(UserFriendLink.user_id == user_id)
             )
