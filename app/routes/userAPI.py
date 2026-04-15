@@ -513,8 +513,20 @@ def create_invite(request: Request, session: SessionDep, current_user: UserBoard
 
 @router.get("/invite/{token}")
 def redirect_invite(token: str):
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=f"Tabulus://invite?token={token}")
+    from fastapi.responses import HTMLResponse
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body>
+<script>
+    window.location = "Tabulus://invite?token={token}";
+    setTimeout(function() {{
+        window.location = "https://apps.apple.com/app/6762288002";
+    }}, 1500);
+</script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 @router.post("/invite/accept")
 @limiter.limit("30/hour")
