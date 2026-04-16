@@ -34,10 +34,10 @@ router = APIRouter(
 
 @router.get("/userFeed/{user_id}", response_model=list[GameNightPublic])
 @limiter.limit("300/hour")
-def get_game_nights(request: Request, user_id: int, session: SessionDep, offset: int = 0, current_user: UserBoardGame = Depends(get_current_user)):
+def get_game_nights(request: Request, user_id: int, session: SessionDep, offset: int = 0, limit: int = 10, current_user: UserBoardGame = Depends(get_current_user)):
     if not is_friend_or_self(current_user.id, user_id, session):
         raise HTTPException(403, "You must be friends with this user to view their feed")
-    feed = get_game_night_feed(user_id=user_id, offset=offset, session=session)
+    feed = get_game_night_feed(user_id=user_id, offset=offset, limit=limit, session=session)
     return feed
 
 
@@ -49,10 +49,10 @@ def post_game_night(request: Request, game_night_public: GameNightCreate, sessio
 
 @router.get("/userGameNights/{user_id}", response_model=list[GameNightPublic])
 @limiter.limit("300/hour")
-def get_user_game_nights_route(request: Request, user_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+def get_user_game_nights_route(request: Request, user_id: int, session: SessionDep, offset: int = 0, limit: int = 10, current_user: UserBoardGame = Depends(get_current_user)):
     if not is_friend_or_self(current_user.id, user_id, session):
         raise HTTPException(403, "You must be friends with this user to view their game nights")
-    return get_user_game_nights(user_id, session)
+    return get_user_game_nights(user_id, session, offset=offset, limit=limit)
 
 @router.get("/{game_night_id}", response_model=GameNightPublic)
 @limiter.limit("300/hour")
