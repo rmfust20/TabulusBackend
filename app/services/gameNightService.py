@@ -27,7 +27,7 @@ def get_game_night_profile(user_id: int, offset: int, session: SessionDep) -> li
     nights = session.exec(stmt).unique().all()
     return nights
 
-def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[GameNightPublic]:
+def get_game_night_feed(user_id: int, offset: int, session: SessionDep, limit: int = 10) -> list[GameNightPublic]:
     stmt = (
         select(GameNight)
         .where(
@@ -45,7 +45,7 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[
         )
         .order_by(GameNight.id.desc())
         .offset(offset)
-        .limit(10)
+        .limit(limit)
     )
     nights = session.exec(stmt).unique().all()
     result = []
@@ -72,7 +72,7 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep) -> list[
     return result
 
 
-def get_user_game_nights(user_id: int, session: SessionDep) -> list[GameNightPublic]:
+def get_user_game_nights(user_id: int, session: SessionDep, offset: int = 0, limit: int = 10) -> list[GameNightPublic]:
     stmt = (
         select(GameNight)
         .where(GameNight.host_user_id == user_id)
@@ -83,6 +83,8 @@ def get_user_game_nights(user_id: int, session: SessionDep) -> list[GameNightPub
             selectinload(GameNight.users)
         )
         .order_by(GameNight.id.desc())
+        .offset(offset)
+        .limit(limit)
     )
     nights = session.exec(stmt).unique().all()
     return [
