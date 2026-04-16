@@ -287,6 +287,14 @@ def get_win_rate_for_board_game(request: Request, user_id: int, board_game_id: i
     win_rate = round(wins / total, 4) if total > 0 else 0.0
     return {"user_id": user_id, "board_game_id": board_game_id, "wins": wins, "total_sessions": total, "win_rate": win_rate}
 
+@router.get("/gameNightsHosted/{user_id}")
+@limiter.limit("300/hour")
+def get_game_nights_hosted_count(request: Request, user_id: int, session: SessionDep, _: UserBoardGame = Depends(get_current_user)):
+    count = session.exec(
+        select(func.count(GameNight.id)).where(GameNight.host_user_id == user_id)
+    ).one()
+    return count
+
 @router.get("/userProfile/{user_id}", response_model=UserBoardGamePublic)
 @limiter.limit("300/hour")
 def get_user_profile_route(request: Request, user_id: int, session: SessionDep, _: UserBoardGame = Depends(get_current_user)):

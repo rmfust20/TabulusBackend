@@ -138,6 +138,41 @@ def get_user_game_night(game_night_id: int, session: SessionDep) -> GameNightPub
         users=[UserBoardGamePublic(id=u.id, username=u.username, email=u.email, profile_image_url=u.profile_image_url) for u in night.users]
     )
 
+def get_user_recent_game_nights_with_images(user_id: int, session: SessionDep) -> list[GameNightPublic]:
+    stmt = (
+        select(GameNight)
+        .where(GameNight.host_user_id == user_id)
+        .where(GameNight.images.any())
+        .options(
+            selectinload(GameNight.images),
+            selectinload(GameNight.sessions).selectinload(GameSession.winners),
+            selectinload(GameNight.sessions).selectinload(GameSession.board_game),
+            selectinload(GameNight.users)
+        )
+        .order_by(GameNight.id.desc())
+        .limit(4)
+    )
+    nights = session.exec(stmt).unique().all()
+    return [
+        GameNightPublic(
+            id=night.id,
+            host_user_id=night.host_user_id,
+            game_night_date=night.game_night_date,
+            description=night.description,
+            sessions=[
+                GameSessionHelper(
+                    board_game=gs.board_game,
+                    duration_minutes=gs.duration_minutes,
+                    winners_user_id=[w.id for w in gs.winners]
+                )
+                for gs in night.sessions
+            ],
+            images=[image.image_url for image in night.images],
+            users=[UserBoardGamePublic(id=u.id, username=u.username, email=u.email, profile_image_url=u.profile_image_url) for u in night.users]
+        )
+        for night in nights
+    ]
+
 def delete_game_night(game_night_id: int, user_id: int, session: SessionDep) -> bool:
     from sqlmodel import delete as sql_delete
     from azure.storage.blob import BlobServiceClient

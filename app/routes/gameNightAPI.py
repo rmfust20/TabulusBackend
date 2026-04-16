@@ -10,7 +10,7 @@ from app.services import reviewsService, feedService
 from app.models import BoardGameDesigner
 from app.models import BoardGameDesignerLink
 from app.services import get_game_night_feed
-from app.services.gameNightService import add_game_night, get_user_game_night, get_user_game_nights, delete_game_night
+from app.services.gameNightService import add_game_night, get_user_game_night, get_user_game_nights, delete_game_night, get_user_recent_game_nights_with_images
 from app.models.user import UserBoardGame
 from app.models.report import Report
 from app.models.userFriendLink import UserFriendLink
@@ -76,6 +76,13 @@ def delete_game_night_route(request: Request, game_night_id: int, session: Sessi
     if not found:
         raise HTTPException(404, "Game night not found")
     return {"message": "Game night deleted"}
+
+@router.get("/recentWithImages/{user_id}", response_model=list[GameNightPublic])
+@limiter.limit("300/hour")
+def get_recent_game_nights_with_images(request: Request, user_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    if not is_friend_or_self(current_user.id, user_id, session):
+        raise HTTPException(403, "You must be friends with this user to view their game nights")
+    return get_user_recent_game_nights_with_images(user_id, session)
 
 @router.post("/reportGameNight/{game_night_id}")
 @limiter.limit("20/hour")
