@@ -514,16 +514,18 @@ def create_invite(request: Request, session: SessionDep, current_user: UserBoard
 @router.get("/invite/{token}")
 def redirect_invite(token: str):
     from fastapi.responses import HTMLResponse
+    # With Universal Links, iOS intercepts this URL before it hits the server.
+    # This page only renders when the app is NOT installed — redirect to App Store.
     html = f"""<!DOCTYPE html>
 <html>
-<head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body>
-<script>
-    window.location = "Tabulus://invite?token={token}";
-    setTimeout(function() {{
-        window.location = "https://apps.apple.com/app/6762288002";
-    }}, 1500);
-</script>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-itunes-app" content="app-id=6762288002">
+</head>
+<body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px 20px">
+<h2>Tabulus</h2>
+<p>You've been invited to connect on Tabulus!</p>
+<p><a href="https://apps.apple.com/app/6762288002">Download Tabulus on the App Store</a></p>
 </body>
 </html>"""
     return HTMLResponse(content=html)
