@@ -23,6 +23,8 @@ from app.services.tokenService import new_refresh_token, hash_refresh_token
 from app.models.refreshToken import RefreshToken
 from app.models.passwordResetToken import PasswordResetToken
 from app.models.emailVerificationToken import EmailVerificationToken
+from app.models.report import Report
+from app.models.inviteToken import InviteToken
 from app.services.appleAuthService import verify_apple_token
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
@@ -429,13 +431,25 @@ def apple_complete(request: Request, body: AppleCompleteRequest, session: Sessio
 @router.delete("/deleteAccount")
 @limiter.limit("60/hour")
 def delete_account(request: Request, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobServiceClient
+    from azure.core.exceptions import ResourceNotFoundError, AzureError
+
     user_id = current_user.id
 
-    # Delete hosted game nights and all their children
+    # Collect all blob names that need to be deleted from Azure
+    blob_names: list[str] = []
+
+    # Game night images for hosted nights
     hosted_night_ids = session.exec(
         select(GameNight.id).where(GameNight.host_user_id == user_id)
     ).all()
     if hosted_night_ids:
+        image_rows = session.exec(
+            select(GameNightImage).where(GameNightImage.game_night_id.in_(hosted_night_ids))
+        ).all()
+        blob_names.extend(img.image_url for img in image_rows)
+
         hosted_session_ids = session.exec(
             select(GameSession.id).where(GameSession.game_night_id.in_(hosted_night_ids))
         ).all()
@@ -445,6 +459,28 @@ def delete_account(request: Request, session: SessionDep, current_user: UserBoar
         session.exec(delete(GameNightImage).where(GameNightImage.game_night_id.in_(hosted_night_ids)))
         session.exec(delete(GameNightUserLink).where(GameNightUserLink.game_night_id.in_(hosted_night_ids)))
         session.exec(delete(GameNight).where(GameNight.host_user_id == user_id))
+
+    # User profile image
+    if current_user.profile_image_url:
+        blob_names.append(current_user.profile_image_url)
+
+    # Delete blobs from Azure before touching the DB
+    if blob_names:
+        bsc = BlobServiceClient(
+            account_url="https://tabulususerimages.blob.core.windows.net",
+            credential=DefaultAzureCredential(),
+        )
+        container = bsc.get_container_client("images")
+        failed: list[str] = []
+        for blob_name in blob_names:
+            try:
+                container.get_blob_client(blob_name).delete_blob(delete_snapshots="include")
+            except ResourceNotFoundError:
+                pass
+            except AzureError:
+                failed.append(blob_name)
+        if failed:
+            raise HTTPException(500, f"Failed to delete {len(failed)} image(s) from storage")
 
     # Friend links
     session.exec(delete(UserFriendLink).where(UserFriendLink.user_id == user_id))
@@ -465,6 +501,22 @@ def delete_account(request: Request, session: SessionDep, current_user: UserBoar
 
     # Refresh tokens
     session.exec(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+
+    # Block links
+    session.exec(delete(UserBlockLink).where(UserBlockLink.user_id == user_id))
+    session.exec(delete(UserBlockLink).where(UserBlockLink.blocked_user_id == user_id))
+
+    # Password reset tokens
+    session.exec(delete(PasswordResetToken).where(PasswordResetToken.user_id == user_id))
+
+    # Email verification tokens
+    session.exec(delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user_id))
+
+    # Reports
+    session.exec(delete(Report).where(Report.reporter_user_id == user_id))
+
+    # Invite tokens
+    session.exec(delete(InviteToken).where(InviteToken.inviter_user_id == user_id))
 
     session.delete(current_user)
     session.commit()
