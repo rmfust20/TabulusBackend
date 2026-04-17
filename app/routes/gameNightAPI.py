@@ -37,7 +37,7 @@ router = APIRouter(
 def get_game_nights(request: Request, user_id: int, session: SessionDep, offset: int = 0, limit: int = 10, current_user: UserBoardGame = Depends(get_current_user)):
     if not is_friend_or_self(current_user.id, user_id, session):
         raise HTTPException(403, "You must be friends with this user to view their feed")
-    feed = get_game_night_feed(user_id=user_id, offset=offset, limit=limit, session=session)
+    feed = get_game_night_feed(user_id=user_id, offset=offset, limit=limit, session=session, current_user_id=current_user.id)
     return feed
 
 

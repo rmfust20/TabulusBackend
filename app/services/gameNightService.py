@@ -10,6 +10,7 @@ from app.models.user import UserBoardGamePublic
 from app.models.gameSession import GameSession
 from app.models.gameSessionUserLink import GameSessionUserLink
 from app.models.userFriendLink import UserFriendLink
+from app.models.report import Report
 #rebuild
 def get_game_night_profile(user_id: int, offset: int, session: SessionDep) -> list[GameNight]:
     stmt = (
@@ -27,7 +28,11 @@ def get_game_night_profile(user_id: int, offset: int, session: SessionDep) -> li
     nights = session.exec(stmt).unique().all()
     return nights
 
-def get_game_night_feed(user_id: int, offset: int, session: SessionDep, limit: int = 10) -> list[GameNightPublic]:
+def get_game_night_feed(user_id: int, offset: int, session: SessionDep, limit: int = 10, current_user_id: int | None = None) -> list[GameNightPublic]:
+    reported_ids = select(Report.content_id).where(
+        Report.reporter_user_id == (current_user_id or user_id),
+        Report.content_type == "game_night",
+    )
     stmt = (
         select(GameNight)
         .where(
@@ -37,6 +42,7 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep, limit: i
                 .where(UserFriendLink.user_id == user_id)
             )
         )
+        .where(GameNight.id.notin_(reported_ids))
         .options(
             selectinload(GameNight.images),
             selectinload(GameNight.sessions).selectinload(GameSession.winners),
