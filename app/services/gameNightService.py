@@ -78,10 +78,15 @@ def get_game_night_feed(user_id: int, offset: int, session: SessionDep, limit: i
     return result
 
 
-def get_user_game_nights(user_id: int, session: SessionDep, offset: int = 0, limit: int = 10) -> list[GameNightPublic]:
+def get_user_game_nights(user_id: int, session: SessionDep, offset: int = 0, limit: int = 10, current_user_id: int | None = None) -> list[GameNightPublic]:
+    reported_ids = select(Report.content_id).where(
+        Report.reporter_user_id == (current_user_id or user_id),
+        Report.content_type == "game_night",
+    )
     stmt = (
         select(GameNight)
         .where(GameNight.host_user_id == user_id)
+        .where(GameNight.id.notin_(reported_ids))
         .options(
             selectinload(GameNight.images),
             selectinload(GameNight.sessions).selectinload(GameSession.winners),

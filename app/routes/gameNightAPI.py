@@ -52,7 +52,7 @@ def post_game_night(request: Request, game_night_public: GameNightCreate, sessio
 def get_user_game_nights_route(request: Request, user_id: int, session: SessionDep, offset: int = 0, limit: int = 10, current_user: UserBoardGame = Depends(get_current_user)):
     if not is_friend_or_self(current_user.id, user_id, session):
         raise HTTPException(403, "You must be friends with this user to view their game nights")
-    return get_user_game_nights(user_id, session, offset=offset, limit=limit)
+    return get_user_game_nights(user_id, session, offset=offset, limit=limit, current_user_id=current_user.id)
 
 @router.get("/{game_night_id}", response_model=GameNightPublic)
 @limiter.limit("300/hour")
