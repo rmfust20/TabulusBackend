@@ -104,6 +104,6 @@ def get_hot_board_games_feed(request: Request, session: SessionDep, offset: int 
 
 @router.post("/bomb")
 @limiter.limit("1/hour")
-def bomb_games(request: Request, session: SessionDep, count: int = Query(default=1000, le=5000)):
-    added = bomb_board_games(session, count=count)
+def bomb_games(request: Request, session: SessionDep):
+    added = bomb_board_games(session)
     return {"added": added}

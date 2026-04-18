@@ -1,234 +1,499 @@
-# "Bomb" bulk game importer — fetches the top-ranked board games from BGG
-# by scraping their ranked browse pages, then batch-fetching full details
-# using comma-separated IDs in a single API call.
+# "Bomb" bulk game importer — feeds a list of popular game names
+# through get_board_game_by_name which handles BGG lookup + insertion.
 
-import re
 import time
-import os
-import requests
-import xmltodict
-from dotenv import load_dotenv
 from sqlmodel import Session
 
-from app.models.boardGame import BoardGame
-from app.models.boardGameCategory import BoardGameCategory
-from app.models.boardGameMechanic import BoardGameMechanic
-from app.models.boardGameCategoryLink import BoardGameCategoryLink
-from app.models.boardGameMechanicLink import BoardGameMechanicLink
-from app.models.publisher import Publisher
-from app.models.boardGamePublisherLink import BoardGamePublisherLink
-from app.models.boardGameDesigner import BoardGameDesigner
-from app.models.boardGameDesignerLink import BoardGameDesignerLink
+from app.services.getBoardGameByName import get_board_game_by_name
 
 
-BATCH_SIZE = 20
-SLEEP_BETWEEN_BATCHES = 10  # seconds
-GAMES_PER_BROWSE_PAGE = 100
+SLEEP_BETWEEN_GAMES = 10  # seconds
+
+POPULAR_GAMES = [
+    "Catan",
+    "Pandemic",
+    "Ticket to Ride",
+    "Carcassonne",
+    "Codenames",
+    "Azul",
+    "7 Wonders",
+    "Dominion",
+    "Splendor",
+    "Wingspan",
+    "Gloomhaven",
+    "Terraforming Mars",
+    "Scythe",
+    "Spirit Island",
+    "Root",
+    "Brass Birmingham",
+    "Agricola",
+    "Puerto Rico",
+    "Power Grid",
+    "Viticulture",
+    "Everdell",
+    "Clank",
+    "Mysterium",
+    "Dixit",
+    "Betrayal at House on the Hill",
+    "King of Tokyo",
+    "Small World",
+    "Photosynthesis",
+    "Patchwork",
+    "Jaipur",
+    "Star Realms",
+    "Sagrada",
+    "Santorini",
+    "Coup",
+    "Love Letter",
+    "The Resistance",
+    "Sushi Go",
+    "Forbidden Island",
+    "Forbidden Desert",
+    "Pandemic Legacy Season 1",
+    "Pandemic Legacy Season 2",
+    "Gloomhaven Jaws of the Lion",
+    "Ark Nova",
+    "Dune Imperium",
+    "Cascadia",
+    "Calico",
+    "Parks",
+    "Quacks of Quedlinburg",
+    "Villainous",
+    "Clue",
+    "Monopoly",
+    "Risk",
+    "Chess",
+    "Checkers",
+    "Backgammon",
+    "Mancala",
+    "Uno",
+    "Sorry",
+    "Life",
+    "Stratego",
+    "Battleship",
+    "Connect Four",
+    "Trouble",
+    "Yahtzee",
+    "Boggle",
+    "Scrabble",
+    "Trivial Pursuit",
+    "Pictionary",
+    "Taboo",
+    "Cranium",
+    "Apples to Apples",
+    "Cards Against Humanity",
+    "Exploding Kittens",
+    "Unstable Unicorns",
+    "Munchkin",
+    "Settlers of Catan",
+    "Cosmic Encounter",
+    "Twilight Imperium",
+    "Eclipse",
+    "Terra Mystica",
+    "Gaia Project",
+    "Great Western Trail",
+    "Concordia",
+    "Castles of Burgundy",
+    "Orleans",
+    "Marco Polo",
+    "Caverna",
+    "Le Havre",
+    "Ora et Labora",
+    "Stone Age",
+    "Lords of Waterdeep",
+    "Champions of Midgard",
+    "Raiders of the North Sea",
+    "Architects of the West Kingdom",
+    "Paladins of the West Kingdom",
+    "Viscounts of the West Kingdom",
+    "Feast for Odin",
+    "Blood Rage",
+    "Rising Sun",
+    "Ankh",
+    "Inis",
+    "Kemet",
+    "Cyclades",
+    "War of the Ring",
+    "Star Wars Rebellion",
+    "Twilight Struggle",
+    "Through the Ages",
+    "Brass Lancashire",
+    "Food Chain Magnate",
+    "Indonesia",
+    "Mage Knight",
+    "Robinson Crusoe",
+    "Dead of Winter",
+    "Nemesis",
+    "Zombicide",
+    "Mansions of Madness",
+    "Arkham Horror",
+    "Eldritch Horror",
+    "Elder Sign",
+    "Descent",
+    "Imperial Assault",
+    "Mice and Mystics",
+    "Stuffed Fables",
+    "My Little Scythe",
+    "Ticket to Ride Europe",
+    "Ticket to Ride Nordic Countries",
+    "Ticket to Ride Rails and Sails",
+    "Memoir 44",
+    "Undaunted Normandy",
+    "Undaunted North Africa",
+    "Unmatched",
+    "Funkoverse",
+    "Horrified",
+    "Jaws",
+    "The Crew",
+    "The Crew Mission Deep Sea",
+    "Hanabi",
+    "The Mind",
+    "Wavelength",
+    "Just One",
+    "Decrypto",
+    "Mysterium Park",
+    "Obscurio",
+    "Deception Murder in Hong Kong",
+    "Werewolf",
+    "Secret Hitler",
+    "Avalon",
+    "Blood on the Clocktower",
+    "One Night Ultimate Werewolf",
+    "Sheriff of Nottingham",
+    "Bohnanza",
+    "Chinatown",
+    "Catan Seafarers",
+    "Catan Cities and Knights",
+    "Catan Traders and Barbarians",
+    "Catan Starfarers",
+    "Dominion Intrigue",
+    "Dominion Seaside",
+    "Dominion Prosperity",
+    "Thunderstone",
+    "Aeons End",
+    "Clank In Space",
+    "Harry Potter Hogwarts Battle",
+    "Marvel Champions",
+    "Arkham Horror Card Game",
+    "Lord of the Rings Card Game",
+    "KeyForge",
+    "Magic The Gathering",
+    "Netrunner",
+    "Race for the Galaxy",
+    "Roll for the Galaxy",
+    "Res Arcana",
+    "Innovation",
+    "San Juan",
+    "Glory to Rome",
+    "Citadels",
+    "Mission Red Planet",
+    "Libertalia",
+    "Ethnos",
+    "Alhambra",
+    "Tigris and Euphrates",
+    "Samurai",
+    "Ra",
+    "Modern Art",
+    "For Sale",
+    "No Thanks",
+    "Skull",
+    "Cockroach Poker",
+    "Bluff",
+    "Perudo",
+    "Camel Up",
+    "Flamme Rouge",
+    "Jamaica",
+    "Tobago",
+    "Imhotep",
+    "Century Spice Road",
+    "Century Golem Edition",
+    "Century Eastern Wonders",
+    "Gizmos",
+    "Space Base",
+    "Machi Koro",
+    "Valeria Card Kingdoms",
+    "Dice Throne",
+    "King of New York",
+    "Bunny Kingdom",
+    "Smallworld Underground",
+    "Five Tribes",
+    "Quadropolis",
+    "Between Two Cities",
+    "Between Two Castles",
+    "Suburbia",
+    "Castles of Mad King Ludwig",
+    "Tiny Towns",
+    "Tiny Epic Galaxies",
+    "Tiny Epic Kingdoms",
+    "Tiny Epic Quest",
+    "Wingspan European Expansion",
+    "Wingspan Oceania Expansion",
+    "Wingspan Asia",
+    "Maracaibo",
+    "Barrage",
+    "Kanban EV",
+    "Lisboa",
+    "The Gallerist",
+    "Vinhos",
+    "On Mars",
+    "Lacerda",
+    "Teotihuacan",
+    "Tzolkin",
+    "Tekhenu",
+    "Tawantinsuyu",
+    "Trismegistus",
+    "Coimbra",
+    "Lorenzo il Magnifico",
+    "Grand Austria Hotel",
+    "Dice Hospital",
+    "Circadians First Light",
+    "Anachrony",
+    "Trickerion",
+    "Cerebria",
+    "Pendulum",
+    "Tapestry",
+    "Charterstone",
+    "My City",
+    "Cleopatra",
+    "Lost Ruins of Arnak",
+    "Beyond the Sun",
+    "Praga Caput Regni",
+    "Underwater Cities",
+    "Terraforming Mars Ares Expedition",
+    "It's a Wonderful World",
+    "Hadara",
+    "7 Wonders Duel",
+    "7 Wonders Architects",
+    "Babylon",
+    "Luxor",
+    "Karnak",
+    "Pandemic Iberia",
+    "Pandemic Fall of Rome",
+    "Pandemic Rising Tide",
+    "Pandemic Reign of Cthulhu",
+    "Flash Point Fire Rescue",
+    "Ghost Stories",
+    "Aeons End War Eternal",
+    "Legendary Encounters Alien",
+    "Sentinels of the Multiverse",
+    "Marvel United",
+    "Horrified American Monsters",
+    "Sleeping Gods",
+    "ISS Vanguard",
+    "Tainted Grail",
+    "Etherfields",
+    "Middara",
+    "Oathsworn",
+    "Frosthaven",
+    "Imperial Settlers",
+    "51st State",
+    "Empires of the Void",
+    "Twilight Inscription",
+    "Oath",
+    "Vast",
+    "Leder Games",
+    "Pax Pamir",
+    "John Company",
+    "Wehrlegig",
+    "Container",
+    "Stockpile",
+    "Acquire",
+    "Chinatown",
+    "Sidereal Confluence",
+    "Bora Bora",
+    "Bruges",
+    "Trajan",
+    "Mombasa",
+    "Great Western Trail Argentina",
+    "Maracaibo",
+    "Merv",
+    "Marco Polo 2",
+    "Russian Railroads",
+    "Snowdonia",
+    "Age of Steam",
+    "Steam",
+    "Railways of the World",
+    "Ticket to Ride Germany",
+    "Ticket to Ride London",
+    "Ticket to Ride New York",
+    "Ticket to Ride First Journey",
+    "Azul Summer Pavilion",
+    "Azul Stained Glass",
+    "Sagrada Life",
+    "Lanterns",
+    "Indian Summer",
+    "Cottage Garden",
+    "Barenpark",
+    "New York Zoo",
+    "Silver and Gold",
+    "Welcome To",
+    "Railroad Ink",
+    "Cartographers",
+    "Rolling Realms",
+    "Second Chance",
+    "Qwixx",
+    "Ganz Schon Clever",
+    "Twice as Clever",
+    "Clever Cubed",
+    "Kingdomino",
+    "Queendomino",
+    "Isle of Cats",
+    "Calico",
+    "Cascadia",
+    "Verdant",
+    "Point Salad",
+    "Sushi Go Party",
+    "Silver Dagger",
+    "Incan Gold",
+    "Diamant",
+    "Celestia",
+    "Deep Sea Adventure",
+    "Port Royal",
+    "Arboretum",
+    "Mandala",
+    "Hanamikoji",
+    "Targi",
+    "Watergate",
+    "Raptor",
+    "Twilight Inscription",
+    "7 Wonders Duel Pantheon",
+    "Schotten Totten",
+    "Battle Line",
+    "Air Land and Sea",
+    "Fox in the Forest",
+    "The Fox in the Forest Duet",
+    "Onitama",
+    "Hive",
+    "Blokus",
+    "Azul Queen Garden",
+    "Pandemic Hot Zone",
+    "Catan Junior",
+    "Ticket to Ride Junior",
+    "My First Carcassonne",
+    "Rhino Hero",
+    "Ice Cool",
+    "Zombie Kidz Evolution",
+    "Dragomino",
+    "MicroMacro Crime City",
+    "Detective",
+    "Chronicles of Crime",
+    "Sherlock Holmes Consulting Detective",
+    "Unlock",
+    "Exit The Game",
+    "Deckscape",
+    "Escape Room The Game",
+    "Clank Legacy",
+    "Aeons End Legacy",
+    "Betrayal Legacy",
+    "Risk Legacy",
+    "SeaFall",
+    "Apiary",
+    "Earth",
+    "Creature Comforts",
+    "Brew",
+    "Canvas",
+    "Chai",
+    "Herbaceous",
+    "Floriferous",
+    "Meadow",
+    "Forest Shuffle",
+    "Flamecraft",
+    "Wyrmspan",
+    "Heat Pedal to the Metal",
+    "Sky Team",
+    "Harmonies",
+    "Nucleum",
+    "Tiletum",
+    "Darwin's Journey",
+    "Revive",
+    "Lacrimosa",
+    "Zhanguo",
+    "Messina 1347",
+    "Carnegie",
+    "Golem",
+    "Woodcraft",
+    "Obsession",
+    "Destinies",
+    "Stardew Valley",
+    "Minecraft Builders and Biomes",
+    "Cthulhu Death May Die",
+    "Too Many Bones",
+    "Agemonia",
+    "Vagrantsong",
+    "Final Girl",
+    "Marvel Zombies",
+    "Descent Legends of the Dark",
+    "Journeys in Middle Earth",
+    "Star Wars Outer Rim",
+    "Star Wars X Wing",
+    "Warhammer Underworlds",
+    "Undaunted Stalingrad",
+    "Commands and Colors",
+    "Paths of Glory",
+    "Sekigahara",
+    "Waterloo",
+    "Agricola Revised Edition",
+    "Caverna Cave vs Cave",
+    "Nusfjord",
+    "Hallertau",
+    "Fields of Arle",
+    "Glass Road",
+    "At the Gates of Loyang",
+    "Ora et Labora",
+    "Bonfire",
+    "Merlin",
+    "Rajas of the Ganges",
+    "Heaven and Ale",
+    "Santa Maria",
+    "Ginkgopolis",
+    "Troyes",
+    "Tournay",
+    "The Manhattan Project",
+    "Viticulture Tuscany",
+    "Scythe Rise of Fenris",
+    "Root Riverfolk",
+    "Root Underworld",
+    "Nemesis Lockdown",
+    "Eclipse Second Dawn",
+    "Dune",
+    "Dune Imperium Uprising",
+    "Arcs",
+    "Kabuto Sumo",
+    "Klask",
+    "Crokinole",
+    "Bullet",
+    "Kites",
+    "Regicide",
+    "The Search for Planet X",
+    "Cryptid",
+    "So Clover",
+    "Pictures",
+    "Telestrations",
+    "Wits and Wagers",
+    "Concept",
+    "Monikers",
+    "Time Stories",
+    "Pandemic Rapid Response",
+]
 
 
-def _scrape_ranked_ids(count: int) -> list[int]:
-    """Scrape BGG's browse pages to get game IDs in rank order."""
-    pages_needed = (count + GAMES_PER_BROWSE_PAGE - 1) // GAMES_PER_BROWSE_PAGE
-    all_ids: list[int] = []
-
-    for page in range(1, pages_needed + 1):
-        url = f"https://boardgamegeek.com/browse/boardgame/page/{page}"
-        print(f"[bomb] scraping ranked page {page}/{pages_needed}")
-
-        try:
-            r = requests.get(url)
-            r.raise_for_status()
-        except Exception as e:
-            print(f"[bomb] failed to fetch browse page {page}: {e}")
-            continue
-
-        # Each game row has a link like /boardgame/174430/gloomhaven
-        ids = re.findall(r'/boardgame/(\d+)/', r.text)
-        # deduplicate while preserving order (page can repeat IDs in links)
-        seen = set(all_ids)
-        for gid_str in ids:
-            gid = int(gid_str)
-            if gid not in seen:
-                all_ids.append(gid)
-                seen.add(gid)
-
-        if len(all_ids) >= count:
-            break
-
-        time.sleep(1)
-
-    return all_ids[:count]
-
-
-def _parse_and_insert_game(game_id: int, item: dict, session: Session) -> bool:
-    """Parse a single BGG item dict and insert the game + relationships.
-    Returns True on success, False on skip/error."""
-    if item.get("@type") != "boardgame":
-        return False
-
-    try:
-        name = item.get("name")
-        if not name:
-            return False
-        if isinstance(name, list):
-            name = name[0]
-        if isinstance(name, dict):
-            name = name.get("@value")
-        if not name:
-            return False
-
-        thumbnail = item.get("thumbnail")
-        image = item.get("image")
-        description = item.get("description")
-        year_published = (item.get("yearpublished") or {}).get("@value")
-        min_players = (item.get("minplayers") or {}).get("@value")
-        max_players = (item.get("maxplayers") or {}).get("@value")
-        play_time = (item.get("playingtime") or {}).get("@value")
-        min_age = (item.get("minage") or {}).get("@value")
-
-        links = item.get("link", [])
-        if isinstance(links, dict):
-            links = [links]
-    except Exception:
-        return False
-
-    categories = []
-    mechanics = []
-    publishers = []
-    designers = []
-
-    for link in links:
-        link_type = link.get("@type")
-        if link_type == "boardgamecategory":
-            categories.append((link["@value"], link["@id"]))
-        elif link_type == "boardgamemechanic":
-            mechanics.append((link["@value"], link["@id"]))
-        elif link_type == "boardgamepublisher":
-            publishers.append((link["@value"], link["@id"]))
-        elif link_type == "boardgamedesigner":
-            designers.append((link["@value"], link["@id"]))
-
-    try:
-        board_game = BoardGame(
-            id=game_id,
-            name=name,
-            thumbnail=thumbnail,
-            image=image,
-            year_published=year_published,
-            description=description,
-            min_players=min_players,
-            max_players=max_players,
-            play_time=play_time,
-            min_age=min_age,
-        )
-        board_game = BoardGame.model_validate(board_game)
-        session.add(board_game)
-        session.flush()
-    except Exception:
-        session.rollback()
-        return False
-
-    for cat_name, cat_id in categories:
-        if not session.get(BoardGameCategory, cat_id):
-            session.add(BoardGameCategory.model_validate(
-                BoardGameCategory(id=cat_id, name=cat_name)))
-            session.flush()
-        session.add(BoardGameCategoryLink.model_validate(
-            BoardGameCategoryLink(board_game_id=game_id, category_id=cat_id)))
-        session.flush()
-
-    for mech_name, mech_id in mechanics:
-        if not session.get(BoardGameMechanic, mech_id):
-            session.add(BoardGameMechanic.model_validate(
-                BoardGameMechanic(id=mech_id, name=mech_name)))
-            session.flush()
-        session.add(BoardGameMechanicLink.model_validate(
-            BoardGameMechanicLink(board_game_id=game_id, mechanic_id=mech_id)))
-        session.flush()
-
-    for des_name, des_id in designers:
-        if not session.get(BoardGameDesigner, des_id):
-            session.add(BoardGameDesigner.model_validate(
-                BoardGameDesigner(id=des_id, name=des_name)))
-            session.flush()
-        session.add(BoardGameDesignerLink.model_validate(
-            BoardGameDesignerLink(board_game_id=game_id, designer_id=des_id)))
-        session.flush()
-
-    for pub_name, pub_id in publishers:
-        if not session.get(Publisher, pub_id):
-            session.add(Publisher.model_validate(
-                Publisher(id=pub_id, name=pub_name)))
-            session.flush()
-        session.add(BoardGamePublisherLink.model_validate(
-            BoardGamePublisherLink(board_game_id=game_id, publisher_id=pub_id)))
-        session.flush()
-
-    session.commit()
-    return True
-
-
-def bomb_board_games(
-    session: Session,
-    count: int = 1000,
-) -> int:
-    """Bulk-fetch the top `count` ranked board games from BGG.
-    Skips games already in the DB. Returns the number of games added."""
-    load_dotenv()
-    bearer = os.getenv("bearer_token")
-    headers = {"Authorization": f"Bearer {bearer}"}
-
-    # Step 1: scrape BGG browse pages to get ranked game IDs
-    print(f"[bomb] scraping top {count} ranked game IDs from BGG...")
-    ranked_ids = _scrape_ranked_ids(count)
-    print(f"[bomb] found {len(ranked_ids)} ranked game IDs")
-
-    # Step 2: filter out games we already have
-    candidate_ids = [gid for gid in ranked_ids if not session.get(BoardGame, gid)]
-    print(f"[bomb] {len(ranked_ids) - len(candidate_ids)} already in DB, {len(candidate_ids)} to fetch")
-
-    if not candidate_ids:
-        print("[bomb] nothing new to add")
-        return 0
-
-    # Step 3: batch-fetch full details from BGG API
+def bomb_board_games(session: Session) -> int:
+    """Look up each popular game by name, adding any that aren't
+    already in the DB. Returns the number of games added."""
     added = 0
-    batches = [candidate_ids[i:i + BATCH_SIZE]
-               for i in range(0, len(candidate_ids), BATCH_SIZE)]
 
-    for batch_num, batch in enumerate(batches, 1):
-        ids_str = ",".join(str(gid) for gid in batch)
-        url = f"https://api.geekdo.com/xmlapi2/thing?id={ids_str}&stats=1"
-
-        print(f"[bomb] batch {batch_num}/{len(batches)} — fetching {len(batch)} games")
+    for i, name in enumerate(POPULAR_GAMES, 1):
+        print(f"[bomb] {i}/{len(POPULAR_GAMES)} — looking up '{name}'")
 
         try:
-            r = requests.get(url, headers=headers)
-            r.raise_for_status()
-            data = xmltodict.parse(r.text)
-        except Exception as e:
-            print(f"[bomb] batch {batch_num} request failed: {e}")
-            time.sleep(SLEEP_BETWEEN_BATCHES)
-            continue
-
-        items = data.get("items", {}).get("item")
-        if not items:
-            time.sleep(SLEEP_BETWEEN_BATCHES)
-            continue
-
-        if isinstance(items, dict):
-            items = [items]
-
-        for item in items:
-            game_id = int(item.get("@id", 0))
-            if not game_id:
-                continue
-            if _parse_and_insert_game(game_id, item, session):
+            results = get_board_game_by_name(name, session)
+            if results:
                 added += 1
-                print(f"[bomb]   added {item.get('name', '?')} (id={game_id})")
+                print(f"[bomb]   found/added '{name}'")
+        except Exception as e:
+            print(f"[bomb]   skipped '{name}': {e}")
 
-        print(f"[bomb] batch {batch_num} done — {added} total added so far")
-        time.sleep(SLEEP_BETWEEN_BATCHES)
+        time.sleep(SLEEP_BETWEEN_GAMES)
 
-    print(f"[bomb] finished — {added} games added")
+    print(f"[bomb] finished — {added} games processed")
     return added
