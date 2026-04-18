@@ -22,7 +22,7 @@ from app.models.boardGameDesignerLink import BoardGameDesignerLink
 
 
 BATCH_SIZE = 20
-SLEEP_BETWEEN_BATCHES = 2  # seconds
+SLEEP_BETWEEN_BATCHES = 10  # seconds
 GAMES_PER_BROWSE_PAGE = 100
 
 
