@@ -1,4 +1,5 @@
 from typing import Annotated
+from urllib.parse import unquote
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from app.connection import SessionDep
 from fastapi import APIRouter
@@ -23,6 +24,7 @@ router = APIRouter(
 @router.get("/search/{name}", response_model=list[BoardGame])
 @limiter.limit("300/hour")
 def read_board_game_by_name(request: Request, name: str, session: SessionDep, _: UserBoardGame = Depends(get_current_user)):
+    name = unquote(name)
     statement = select(BoardGame).where(BoardGame.name.ilike(f'%{name}%'))
     board_games = session.exec(statement).all()
     if not board_games:
