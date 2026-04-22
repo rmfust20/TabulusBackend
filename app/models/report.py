@@ -8,3 +8,5 @@ class Report(SQLModel, table=True):
     content_type: str  # "game_night" or "review"
     content_id: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+#
