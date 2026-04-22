@@ -10,7 +10,7 @@ from app.services import reviewsService, feedService, get_general_trending_feed
 from app.models import BoardGameDesigner
 from app.models import BoardGameDesignerLink
 from app.services.boardGameService import get_trending_with_friends_feed
-from app.services.bombBoardGames import bomb_board_games
+
 from app.models.hotBoardGame import HotBoardGame
 from app.models.user import UserBoardGame
 from app.services.userService import get_current_user
@@ -104,8 +104,9 @@ def get_hot_board_games_feed(request: Request, session: SessionDep, offset: int 
     )
     return session.exec(statement).all()
 
-@router.post("/bomb")
-@limiter.limit("1/hour")
-def bomb_games(request: Request, session: SessionDep):
-    added = bomb_board_games(session)
-    return {"added": added}
+
+# @router.post("/bomb")
+# @limiter.limit("1/hour")
+# def bomb_games(request: Request, session: SessionDep):
+#     added = bomb_board_games(session)
+#     return {"added": added}

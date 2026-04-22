@@ -16,6 +16,7 @@ from app.models.report import Report
 from app.models.userFriendLink import UserFriendLink
 from app.services.userService import get_current_user
 from app.utilities.limiter import limiter
+from app.utilities.profanity import contains_profanity
 
 
 def is_friend_or_self(current_user_id: int, host_user_id: int, session: SessionDep) -> bool:
@@ -44,6 +45,8 @@ def get_game_nights(request: Request, user_id: int, session: SessionDep, offset:
 @router.post("/postNight")
 @limiter.limit("20/hour")
 def post_game_night(request: Request, game_night_public: GameNightCreate, session: SessionDep, _: UserBoardGame = Depends(get_current_user)):
+    if contains_profanity(game_night_public.description or ""):
+        raise HTTPException(400, "Description contains inappropriate language")
     add_game_night(payload=game_night_public, session=session)
     return {"message": "Game night added successfully"}
 

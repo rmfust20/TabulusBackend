@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.services import reviewsService
 from app.services.userService import get_current_user
 from app.utilities.limiter import limiter
+from app.utilities.profanity import contains_profanity
 from app.models.report import Report
 from app.models.userBlockLink import UserBlockLink
 
@@ -53,6 +54,8 @@ def create_review_for_board_game(request: Request, review: Review, session: Sess
                                  user: UserBoardGame = Depends(get_current_user)):
     if review.user_id != user.id:
         raise HTTPException(403, "Cannot create review for another user")
+    if contains_profanity(review.comment or ""):
+        raise HTTPException(400, "Review contains inappropriate language")
     existing = session.exec(
         select(Review).where(Review.user_id == user.id, Review.board_game_id == review.board_game_id)
     ).first()
@@ -70,6 +73,8 @@ def edit_review_for_board_game(request: Request, review_id: int, updated_review:
         raise HTTPException(404, "Review not found")
     if existing_review.user_id != current_user.id:
         raise HTTPException(403, "Cannot edit another user's review")
+    if contains_profanity(updated_review.comment or ""):
+        raise HTTPException(400, "Review contains inappropriate language")
 
     data = updated_review.model_dump(exclude_unset=True)
     existing_review.sqlmodel_update(data)

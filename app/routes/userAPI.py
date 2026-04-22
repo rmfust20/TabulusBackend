@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from app.connection import SessionDep
 from fastapi import Depends, FastAPI, HTTPException, Query
 from app.utilities.limiter import limiter
+from app.utilities.profanity import contains_profanity
 from sqlmodel import Field, Session, SQLModel, create_engine, insert, select, delete, func
 from app.connection import SessionDep
 from typing import Annotated
@@ -83,6 +84,8 @@ router = APIRouter(
 def register_user(request: Request, user: UserBoardGameCreate, session: SessionDep):
     if "@" in user.username:
         raise HTTPException(400, "Username cannot contain '@'")
+    if contains_profanity(user.username):
+        raise HTTPException(400, "Username contains inappropriate language")
 
     existing = session.exec(select(UserBoardGame).where(UserBoardGame.username == user.username)).first()
     if existing:
