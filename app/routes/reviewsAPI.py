@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from app.models import Review, UserBoardGame, ReviewUpdate, ReviewPublic
 from sqlalchemy.orm import selectinload
+from app.models.review import ReviewPublicTest
 from app.services import reviewsService
 from app.services.userService import get_current_user
 from app.utilities.limiter import limiter
@@ -42,7 +43,7 @@ def read_reviews_by_board_game_name(request: Request, board_game_id, session: Se
     reviews = session.exec(statement).all()
     return reviews
 
-@router.get("/boardGame/test/{board_game_id}", response_model=list[ReviewPublic])
+@router.get("/boardGame/test/{board_game_id}", response_model=list[ReviewPublicTest])
 @limiter.limit("300/hour")
 def read_reviews_by_board_game_name(request: Request, board_game_id, session: SessionDep, limit = 20, offset: int = 0, current_user: UserBoardGame = Depends(get_current_user)):
     blocked_ids = select(UserBlockLink.blocked_user_id).where(UserBlockLink.user_id == current_user.id)
