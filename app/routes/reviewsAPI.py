@@ -171,7 +171,7 @@ def like_review(request: Request, review_id: int, session: SessionDep, current_u
     session.commit()
     return {"message": "Review liked"}
 
-@router.delete("/like/{review_id}")
+@router.delete("/unlike/{review_id}")
 @limiter.limit("60/hour")
 def unlike_review(request: Request, review_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
     existing = session.get(ReviewLike, (current_user.id, review_id))
