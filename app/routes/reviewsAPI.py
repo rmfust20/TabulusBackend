@@ -10,7 +10,9 @@ from app.services.userService import get_current_user
 from app.utilities.limiter import limiter
 from app.utilities.profanity import contains_profanity
 from app.models.report import Report
+from app.models.reviewLike import ReviewLike
 from app.models.userBlockLink import UserBlockLink
+from sqlmodel import func
 
 
 router = APIRouter(
@@ -132,7 +134,34 @@ def report_review(request: Request, review_id: int, session: SessionDep, current
     session.commit()
     return {"message": "Review reported"}
 
+@router.post("/like/{review_id}")
+@limiter.limit("60/hour")
+def like_review(request: Request, review_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    review = session.get(Review, review_id)
+    if not review:
+        raise HTTPException(404, "Review not found")
+    existing = session.get(ReviewLike, (current_user.id, review_id))
+    if existing:
+        raise HTTPException(409, "Already liked this review")
+    session.add(ReviewLike(user_id=current_user.id, review_id=review_id))
+    session.commit()
+    return {"message": "Review liked"}
 
+@router.delete("/like/{review_id}")
+@limiter.limit("60/hour")
+def unlike_review(request: Request, review_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    existing = session.get(ReviewLike, (current_user.id, review_id))
+    if not existing:
+        raise HTTPException(404, "Like not found")
+    session.delete(existing)
+    session.commit()
+    return {"message": "Review unliked"}
 
-
-    
+@router.get("/likes/{review_id}")
+@limiter.limit("300/hour")
+def get_review_likes(request: Request, review_id: int, session: SessionDep, current_user: UserBoardGame = Depends(get_current_user)):
+    count = session.exec(
+        select(func.count()).where(ReviewLike.review_id == review_id)
+    ).one()
+    liked_by_me = session.get(ReviewLike, (current_user.id, review_id)) is not None
+    return {"count": count, "liked_by_me": liked_by_me}
