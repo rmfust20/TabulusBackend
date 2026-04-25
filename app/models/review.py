@@ -33,4 +33,14 @@ class ReviewPublic(SQLModel):
     #likes_count: int = 0
     #user_has_liked: bool = False
 
+class ReviewPublicTest(SQLModel):
+    id: int
+    board_game_id: int
+    rating: int | None = None
+    comment: str | None = None
+    date_created: str | None = None
+    user: UserBoardGamePublic | None = None
+    #likes_count: int = 0
+    #user_has_liked: bool = False
+
 
